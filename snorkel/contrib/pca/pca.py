@@ -538,43 +538,33 @@ class PCA(TFNoiseAwareModel):
         if not np.all(Y_train >= 0):
             raise ValueError("Y_train must have values in [0,1].")
 
-        # note: this is to change the size of the training set
         if self.cardinality == 2:
-            # This removes unlabeled examples and optionally rebalances
             train_idxs = LabelBalancer(Y_train).get_train_idxs(self.rebalance,
                                                                rand_state=self.rand_state)
         else:
             # In categorical setting, just remove unlabeled
             diffs = Y_train.max(axis=1) - Y_train.min(axis=1)
             train_idxs = np.where(diffs > 1e-6)[0]
-        # here you're actually pulling out the training examples specified by train_idxs
-        # in the case of ace-supervised, this cuts down the number of examples from like
-        # 600-something to 64
         X_train = [X_train[j] for j in train_idxs] if self.representation \
             else X_train[train_idxs, :]
         Y_train = Y_train[train_idxs]
-        # todo: here is where i'm going to cut down on the number of weights according
-        # to what you're actually using in X_train and Y_train
+
         if self.weights is not None:
             new_weights = self.weights[train_idxs]
-            # change weights to torch tensor
             self.weights = torch.from_numpy(new_weights).float()
         else:
+            print('no weights provided, continuing with vanilla run...')
             self.weights = torch.from_numpy(np.ones(len(Y_train))).float()
 
         if verbose:
             st = time()
             print "[%s] n_train= %s" % (self.name, len(X_train))
 
-        # this does some tokenizing stuff
         X_train = self._preprocess_data_combination(X_train)
         if X_dev is not None:
             X_dev = self._preprocess_data_combination(X_dev)
         Y_train = torch.from_numpy(Y_train).float()
 
-        # you're taking each training example (as specified by training_idxs) and
-        # constructing a new X_train matrix that has [number of tr examples x features]
-        # and each training example is filled in for each row of the matrix
         new_X_train = None
         for i in range(len(X_train)):
             feature = self.gen_feature(X_train[i])
@@ -588,25 +578,19 @@ class PCA(TFNoiseAwareModel):
         n_classes = 1 if self.cardinality == 2 else None
 
         self.model = self.build_model(n_features, n_classes)
-        # loss = nn.MultiLabelSoftMarginLoss(weight=self.weights, size_average=False)
-        # todo: ok so the issue is this line where you're passing in the weights
-        # the weights are the entire thing, but this is being trained in batches
-        # fuck
+        # moved loss into for loop to account for weights
+        # loss = nn.MultiLabelSoftMarginLoss(size_average=False)
 
         optimizer = torch.optim.Adam(self.model.parameters(), lr=self.lr)
 
         dev_score_opt = 0.0
 
-        # here, "for x,y in train_loader" is called ONCE for every epoch
-        # so the weight that's passed into self.train_model has the same number of
-        # examples as however many training examples there were!!!
-
-        n_batches = int(np.ceil(float(len(X_train)) / self.batch_size))
         for idx in range(self.n_epochs):
             cost = 0.
-            for (x, y), j in zip(train_loader, range(n_batches+1)):
-                # todo: moved loss here
-                weights = self.weights[(j*self.batch_size):((j*self.batch_size)+self.batch_size)]
+            for (x, y), j in zip(train_loader, range(0, len(self.weights),
+                                                            self.batch_size)):
+                # match to batch size of torch's DataLoader
+                weights = self.weights[j:(j+self.batch_size)]
                 loss = nn.MultiLabelSoftMarginLoss(weight=weights, size_average=False)
                 cost += self.train_model(self.model, loss, optimizer, x, y.float())
             if verbose and ((idx + 1) % print_freq == 0 or idx + 1 == self.n_epochs):
