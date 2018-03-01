@@ -33,7 +33,6 @@ def get_content_feats(candidates):
             span = args[0]
             if span.sentence.is_lingual():
                 get_tdl_feats = compile_entity_feature_generator()
-                #sent = get_as_dict(span.parent) -- JD
                 sent = get_as_dict(span.get_parent())
                 xmltree = corenlp_to_xmltree(sent)
                 sidxs = list(range(span.get_word_start(), span.get_word_end() + 1))
