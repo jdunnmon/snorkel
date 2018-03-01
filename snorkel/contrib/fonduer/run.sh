@@ -42,5 +42,5 @@ fi
 cd "$FONDUERHOME"
 
 # Launch jupyter notebook!
-echo "Launching Jupyter Notebook..."
-jupyter notebook --notebook-dir="$FONDUERHOME"
+#echo "Launching Jupyter Notebook..."
+#jupyter notebook --notebook-dir="$FONDUERHOME"
