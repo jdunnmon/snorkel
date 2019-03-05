@@ -74,7 +74,7 @@ class RNNBase(TorchNoiseAwareModel):
                 #Solution found from https://discuss.pytorch.org/t/multi-layer-rnn-with-dataparallel/4450/5
                 # The dimensions are incorrect before the splitting process, so need to swich the batch size axis with the `num_layeer*num_directions` axis
                 hidden_state = (hidden_state[0].permute(1,0,2), hidden_state[1].permute(1,0,2))
-                output = nn.parallel.data_parallel(self, (padded_X, hidden_state))
+                output = torch.nn.parallel.data_parallel(self, (padded_X, hidden_state))
             else:
                 output = self.forward(padded_X, hidden_state)
 
